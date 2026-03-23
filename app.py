@@ -125,7 +125,7 @@ def main():
                         'PRI_met_sumet', 'PRI_jet_all_pt', 'DER_sum_pt', 
                         'PRI_jet_leading_pt', 'DER_pt_tot', 'DER_deltaeta_jet_jet'
                     ]
-                    X_final = X_scaled_df.drop(columns=cols_to_drop_from_model)
+                    X_final = X_scaled_df.drop(columns=cols_to_drop_from_model, errors='ignore')
                     predictions = model.predict(X_final)
 
                     result_df = pd.DataFrame({
