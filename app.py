@@ -94,62 +94,55 @@ def main():
         
     if selected_navbar_menu == "Prediction":
         st.title("Event Classification & Explainability")
-        st.write('Upload your event data (CSV) or input parameters manually to predict whether an event is a signal (1) or background (0).')
+        st.write('Upload your event data (CSV) to predict Signal (1) or Background (0).')
         
         uploaded_file = st.file_uploader('Upload Event Data (CSV)')
+        
         if uploaded_file is not None:
             input_df = pd.read_csv(uploaded_file)
-            y_true_string = input_df['Label'].map({'b': 'Background (b)', 's': 'Signal (s)'})
-            y_true = input_df['Label'].map({'b': 0, 's': 1})
-
             st.write("### Preview of Uploaded Data")
             st.dataframe(input_df.head())
 
-            cols_to_drop = [
-                'EventId', 'Weight',
-                'PRI_jet_leading_phi', 'PRI_jet_subleading_phi',
-                'PRI_met_sumet', 'PRI_jet_all_pt', 'DER_sum_pt', 'PRI_jet_leading_pt',
-                'DER_pt_tot', 'DER_deltaeta_jet_jet'
-            ]
-
             if st.button('Predict'):
-                model, scaler = load_model()
+                with st.spinner('Calculating physics...'):
+                    model, scaler = load_model()
+                    input_ids = input_df['EventId'].tolist() if 'EventId' in input_df.columns else list(range(len(input_df)))
+                    
+                    y_true = None
+                    if 'Label' in input_df.columns:
+                        y_true = input_df['Label'].map({'b': 0, 's': 1})
+                        y_true_string = input_df['Label'].map({'b': 'Background (b)', 's': 'Signal (s)'})
 
-                if 'EventId' in input_df.columns:
-                    input_ids = input_df['EventId'].tolist()
-                else:
-                    input_ids = list(range(len(input_df)))
+                    proc_df = input_df.replace(-999, 0)
 
-                input_df = input_df.replace(-999, 0)
+                    expected_scaler_cols = scaler.feature_names_in_
+                    X_for_scaler = proc_df.reindex(columns=expected_scaler_cols, fill_value=0)
+                    X_scaled_array = scaler.transform(X_for_scaler)
+                    
+                    X_scaled_df = pd.DataFrame(X_scaled_array, columns=expected_scaler_cols)
+                    cols_to_drop_from_model = [
+                        'PRI_jet_leading_phi', 'PRI_jet_subleading_phi',
+                        'PRI_met_sumet', 'PRI_jet_all_pt', 'DER_sum_pt', 
+                        'PRI_jet_leading_pt', 'DER_pt_tot', 'DER_deltaeta_jet_jet'
+                    ]
+                    X_final = X_scaled_df.drop(columns=cols_to_drop_from_model)
+                    predictions = model.predict(X_final)
 
-                expected_scaler_cols = scaler.feature_names_in_
-                X_for_scaler = input_df.reindex(columns=expected_scaler_cols)
-                X_scaled_array = scaler.transform(X_for_scaler)
-                
-                X_scaled_df = pd.DataFrame(X_scaled_array, columns=expected_scaler_cols)
-                cols_to_drop_from_model = [
-                    'PRI_jet_leading_phi', 'PRI_jet_subleading_phi',
-                    'PRI_met_sumet', 'PRI_jet_all_pt', 'DER_sum_pt', 
-                    'PRI_jet_leading_pt', 'DER_pt_tot', 'DER_deltaeta_jet_jet'
-                ]
-                X_final = X_scaled_df.drop(columns=cols_to_drop_from_model)
+                    result_df = pd.DataFrame({
+                        'EventId': input_ids,
+                        'Prediction': pd.Series(predictions).map({1: 'Signal (s)', 0: 'Background (b)'})
+                    })
 
-                predictions = model.predict(X_final)
+                    if y_true is not None:
+                        result_df['Ground Truth'] = y_true_string.values
+                    
+                    st.success("Analysis Complete!")
+                    st.dataframe(result_df)
 
-                result_df = pd.DataFrame({
-                    'EventId': input_ids,
-                    'Prediction': predictions
-                })
-
-                result_df['Prediction'] = result_df['Prediction'].map({
-                    1: 'Signal (s)',
-                    0: 'Background (b)'
-                })
-
-                result_df['Ground Truth'] = y_true_string
-
-                st.dataframe(result_df)
-                st.write(classification_report(predictions, y_true))
+                    if y_true is not None:
+                        st.write("### Performance Metrics")
+                        report = classification_report(y_true, predictions)
+                        st.text(report)
 
 if __name__ == "__main__":
     main()
