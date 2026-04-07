@@ -93,7 +93,7 @@ def main():
         st.write(features_description)
         
     if selected_navbar_menu == "Prediction":
-        st.title("Event Classification & Explainability")
+        st.title("Event Classification")
         st.write('Upload your event data (CSV) to predict Signal (1) or Background (0).')
         
         uploaded_file = st.file_uploader('Upload Event Data (CSV)')
